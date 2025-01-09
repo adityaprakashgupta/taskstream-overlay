@@ -6,15 +6,23 @@ export const initializeTodoistApi = (apiToken: string) => {
   todoistApi = new TodoistApi(apiToken);
 };
 
-export const getTodoistTasks = async () => {
+export const getTodoistProjects = async () => {
   if (!todoistApi) throw new Error("Todoist API not initialized");
-  return await todoistApi.getTasks();
+  return await todoistApi.getProjects();
 };
 
-export const addTodoistTask = async (content: string) => {
+export const getTodoistTasks = async (projectId: string) => {
+  if (!todoistApi) throw new Error("Todoist API not initialized");
+  return await todoistApi.getTasks({
+    projectId,
+  });
+};
+
+export const addTodoistTask = async (content: string, projectId: string) => {
   if (!todoistApi) throw new Error("Todoist API not initialized");
   return await todoistApi.addTask({
     content,
+    projectId,
   });
 };
 
