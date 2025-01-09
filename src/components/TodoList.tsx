@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { TodoItem } from "./TodoItem";
 import { toast } from "sonner";
+import { initializeTodoistApi, getTodoistTasks, addTodoistTask, completeTodoistTask, deleteTodoistTask } from "../services/todoistService";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface Todo {
   id: string;
@@ -10,36 +12,62 @@ interface Todo {
 }
 
 export const TodoList = () => {
-  const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState("");
   const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [apiToken, setApiToken] = useState(localStorage.getItem("todoistToken") || "");
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (apiToken) {
+      initializeTodoistApi(apiToken);
+      localStorage.setItem("todoistToken", apiToken);
+    }
+  }, [apiToken]);
+
+  const { data: todos = [], isLoading } = useQuery({
+    queryKey: ["todos"],
+    queryFn: getTodoistTasks,
+    enabled: !!apiToken,
+    select: (data) => data.map((task) => ({
+      id: task.id.toString(),
+      text: task.content,
+      completed: task.isCompleted || false,
+    })),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: addTodoistTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+      toast("Task added");
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: completeTodoistTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTodoistTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+      toast("Task deleted");
+    },
+  });
 
   const addTodo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodo.trim()) return;
+    if (!apiToken) {
+      toast.error("Please enter your Todoist API token first");
+      return;
+    }
 
-    const todo = {
-      id: Math.random().toString(36).substring(7),
-      text: newTodo,
-      completed: false,
-    };
-
-    setTodos([...todos, todo]);
+    addMutation.mutate(newTodo);
     setNewTodo("");
-    toast("Task added");
-  };
-
-  const completeTodo = (id: string) => {
-    setTodos(
-      todos.map((todo) =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
-    );
-  };
-
-  const deleteTodo = (id: string) => {
-    setTodos(todos.filter((todo) => todo.id !== id));
-    toast("Task deleted");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -49,6 +77,32 @@ export const TodoList = () => {
       setActiveIndex((prev) => Math.max(prev - 1, 0));
     }
   };
+
+  if (!apiToken) {
+    return (
+      <div className="w-96 bg-overlay-bg/85 backdrop-blur-sm rounded-lg shadow-lg p-4">
+        <h2 className="text-xl font-semibold mb-4 text-overlay-text">Stream Tasks</h2>
+        <input
+          type="password"
+          placeholder="Enter your Todoist API token"
+          className="w-full bg-white/10 rounded-lg px-3 py-2 text-overlay-text placeholder:text-overlay-text/50 focus:outline-none focus:ring-2 focus:ring-overlay-accent mb-2"
+          value={apiToken}
+          onChange={(e) => setApiToken(e.target.value)}
+        />
+        <p className="text-sm text-overlay-text/70">
+          Get your API token from{" "}
+          <a
+            href="https://todoist.com/app/settings/integrations/developer"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-overlay-accent hover:underline"
+          >
+            Todoist Settings
+          </a>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div 
@@ -75,15 +129,19 @@ export const TodoList = () => {
       </form>
 
       <div className="space-y-2">
-        {todos.map((todo, index) => (
-          <TodoItem
-            key={todo.id}
-            {...todo}
-            isActive={index === activeIndex}
-            onComplete={completeTodo}
-            onDelete={deleteTodo}
-          />
-        ))}
+        {isLoading ? (
+          <div className="text-overlay-text">Loading tasks...</div>
+        ) : (
+          todos.map((todo, index) => (
+            <TodoItem
+              key={todo.id}
+              {...todo}
+              isActive={index === activeIndex}
+              onComplete={() => completeMutation.mutate(todo.id)}
+              onDelete={() => deleteMutation.mutate(todo.id)}
+            />
+          ))
+        )}
       </div>
     </div>
   );
