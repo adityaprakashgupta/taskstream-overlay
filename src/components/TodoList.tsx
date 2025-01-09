@@ -11,6 +11,7 @@ import {
   deleteTodoistTask 
 } from "../services/todoistService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
 interface Todo {
   id: string;
@@ -19,11 +20,15 @@ interface Todo {
 }
 
 export const TodoList = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [newTodo, setNewTodo] = useState("");
   const [activeIndex, setActiveIndex] = useState<number>(0);
-  const [apiToken, setApiToken] = useState(localStorage.getItem("todoistToken") || "");
-  const [selectedProjectId, setSelectedProjectId] = useState(localStorage.getItem("todoistProjectId") || "");
-  const queryClient = useQueryClient();
+  
+  // Get token and projectId from URL parameters
+  const params = new URLSearchParams(window.location.search);
+  const [apiToken, setApiToken] = useState(params.get("token") || localStorage.getItem("todoistToken") || "");
+  const [selectedProjectId, setSelectedProjectId] = useState(params.get("projectId") || localStorage.getItem("todoistProjectId") || "");
 
   useEffect(() => {
     if (apiToken) {
@@ -76,11 +81,11 @@ export const TodoList = () => {
     e.preventDefault();
     if (!newTodo.trim()) return;
     if (!apiToken) {
-      toast.error("Please enter your Todoist API token first");
+      navigate("/setup");
       return;
     }
     if (!selectedProjectId) {
-      toast.error("Please select a project first");
+      navigate("/setup");
       return;
     }
 
@@ -96,28 +101,17 @@ export const TodoList = () => {
     }
   };
 
-  if (!apiToken) {
+  if (!apiToken || !selectedProjectId) {
     return (
       <div className="w-96 bg-overlay-bg/85 backdrop-blur-sm rounded-lg shadow-lg p-4">
         <h2 className="text-xl font-semibold mb-4 text-overlay-text">Stream Tasks</h2>
-        <input
-          type="password"
-          placeholder="Enter your Todoist API token"
-          className="w-full bg-white/10 rounded-lg px-3 py-2 text-overlay-text placeholder:text-overlay-text/50 focus:outline-none focus:ring-2 focus:ring-overlay-accent mb-2"
-          value={apiToken}
-          onChange={(e) => setApiToken(e.target.value)}
-        />
-        <p className="text-sm text-overlay-text/70">
-          Get your API token from{" "}
-          <a
-            href="https://todoist.com/app/settings/integrations/developer"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-overlay-accent hover:underline"
-          >
-            Todoist Settings
-          </a>
-        </p>
+        <p className="text-overlay-text mb-4">Please configure the widget first</p>
+        <button
+          onClick={() => navigate("/setup")}
+          className="w-full bg-overlay-accent hover:bg-overlay-secondary transition-colors rounded-lg px-3 py-2 text-white"
+        >
+          Go to Setup
+        </button>
       </div>
     );
   }
@@ -129,22 +123,6 @@ export const TodoList = () => {
       tabIndex={0}
     >
       <h2 className="text-xl font-semibold mb-4 text-overlay-text">Stream Tasks</h2>
-      
-      <select
-        value={selectedProjectId}
-        onChange={(e) => {
-          setSelectedProjectId(e.target.value);
-          localStorage.setItem("todoistProjectId", e.target.value);
-        }}
-        className="w-full bg-white/10 rounded-lg px-3 py-2 text-overlay-text mb-4 focus:outline-none focus:ring-2 focus:ring-overlay-accent"
-      >
-        <option value="">Select a project</option>
-        {projects.map((project) => (
-          <option key={project.id} value={project.id}>
-            {project.name}
-          </option>
-        ))}
-      </select>
 
       <form onSubmit={addTodo} className="flex gap-2 mb-4">
         <input
@@ -165,8 +143,6 @@ export const TodoList = () => {
       <div className="space-y-2">
         {isLoading ? (
           <div className="text-overlay-text">Loading tasks...</div>
-        ) : !selectedProjectId ? (
-          <div className="text-overlay-text">Select a project to view tasks</div>
         ) : (
           todos.map((todo, index) => (
             <TodoItem
