@@ -101,6 +101,10 @@ export const TodoList = () => {
     }
   };
 
+  // Calculate completed and total tasks
+  const completedTasks = todos.filter(todo => todo.completed).length;
+  const totalTasks = todos.length;
+
   if (!apiToken || !selectedProjectId) {
     return (
       <div className="w-96 bg-overlay-bg/85 backdrop-blur-sm rounded-lg shadow-lg p-4">
@@ -154,6 +158,11 @@ export const TodoList = () => {
             />
           ))
         )}
+      </div>
+
+      {/* Task count display */}
+      <div className="mt-4 text-sm text-overlay-text/80">
+        {completedTasks} / {totalTasks} tasks completed
       </div>
     </div>
   );
